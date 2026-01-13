@@ -4,58 +4,66 @@ This project uses the Ames Housing dataset to quantify the price premium associa
 
 ## Project Overview
 
-- **Objective**: Quantify the renovation premium in home prices for the Ames Housing dataset using regression models.
-- **Data Source**: The Ames Housing dataset (De Cock, 2011), available from the `AmesHousing` R package.
-- **Methodology**: Perform data cleaning, feature engineering, and multiple regression modeling. The models include transformations such as Box-Cox, log, and polynomial features to address non-linearity and heteroscedasticity in the data.
-- **Outcome**: Derive the key drivers of property value, including house age, renovation status, kitchen quality, and overall quality.
+- **Objective**: Quantify the renovation premium in home prices using Python-based regression analysis.
+- **Data Source**: The raw Ames Housing dataset (De Cock, 2011), accessed directly from the [AmesHousing GitHub repository](https://github.com/topepo/AmesHousing).
+- **Methodology**: Data cleaning, feature engineering, and multiple linear regression (OLS). Models include Box-Cox transformation on the target variable and polynomial features for house age.
+- **Outcome**: Key drivers identified include house age, renovation status, kitchen quality, and overall quality.
 
-## Key Features of the Project
+## Key Features
 
 1. **Data Cleaning & Transformation**:
-   - Removed missing values for critical variables such as sale price, kitchen quality, and house age.
-   - Derived new features like `Renovation_Status` (whether the house was remodeled) and `House_Age` (the age of the house at the time of sale).
-   - Applied a Box-Cox transformation to stabilize the variance in the target variable, `Sale_Price`.
+   - Automated fetching and cleaning of raw data.
+   - Derivation of `Renovation_Status` and `House_Age`.
+   - Box-Cox transformation of `Sale_Price` to address non-normality.
+   
+2. **Modeling**:
+   - Implementation of multiple OLS models using `statsmodels`:
+     - Linear Age
+     - Polynomial Age (Age + Age²)
+     - Log and Square Root Age transformations
+   - Model selection based on AIC/BIC and Adjusted R².
 
-2. **Exploratory Data Analysis**:
-   - Summary statistics and visualizations for key variables such as house price, house age, living area, and kitchen quality.
-   - Used `ggplot2` for plotting and `gtsummary` for summarizing categorical variables.
+3. **Diagnostics**:
+   - Residual analysis (Residuals vs Fitted, Q-Q Plots).
+   - Multicollinearity check using VIF (Variance Inflation Factor).
+   - Influence detection using Cook's Distance.
 
-3. **Modeling**:
-   - Fitted multiple linear regression models to predict house prices, including:
-     - A basic linear regression model.
-     - A model with polynomial terms for house age.
-     - A model with log and square root transformations for house age.
-   - Evaluated model performance using R², adjusted R², AIC, and BIC.
-
-4. **Model Diagnostics**:
-   - Residuals vs. fitted values plot.
-   - Q-Q plot to check normality of residuals.
-   - Detection of influential data points using Cook’s distance, leverage, and DFBETAs.
-   - Variance inflation factor (VIF) to check for multicollinearity.
-
-5. **Final Model Performance**:
-   - The final model achieved an R² of approximately 0.82, indicating a good fit.
-   - Key drivers of home price variation include house age, renovation status, kitchen quality, and living area size.
-
-## Installation
+## Installation & Usage
 
 ### Prerequisites
 
-You will need the following libraries installed to run this project:
+You need **Python 3.7+** and the following libraries:
 
-- **R**: The project was implemented using R.
-- **R Packages**:
-    - `AmesHousing`: For accessing the Ames Housing dataset.
-    - `dplyr`: For data manipulation.
-    - `ggplot2`: For data visualization.
-    - `gtsummary`: For summarizing categorical data.
-    - `tidyr`: For reshaping and tidying data.
-    - `patchwork`: For combining multiple plots.
-    - `broom`: For tidying model outputs.
-    - `MASS`: For Box-Cox transformation and model fitting.
+- `pandas`
+- `numpy`
+- `matplotlib`
+- `seaborn`
+- `statsmodels`
+- `scipy`
 
-You can install the necessary R packages using the following code:
+### Setup
 
-```r
-# Install required packages
-install.packages(c("AmesHousing", "dplyr", "ggplot2", "gtsummary", "tidyr", "patchwork", "broom", "MASS"))
+1. Clone this repository.
+2. Install dependencies:
+   ```bash
+   pip install pandas numpy matplotlib seaborn statsmodels scipy
+
+### Running the Analysis
+
+Run the main analysis script:
+
+```bash
+python ames_analysis.py
+
+```
+
+This will:
+
+1. Fetch the dataset.
+2. Perform the regression analysis.
+3. Output summary tables to the console.
+4. Save diagnostic plots (e.g., `residuals_vs_fitted.png`, `qq_plot.png`) to the current directory.
+
+## License
+
+This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.
