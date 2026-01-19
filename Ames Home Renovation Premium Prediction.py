@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
@@ -24,30 +25,63 @@ except Exception as e:
     # Fallback to local file if URL fails (user would need to provide file)
     raise
 
-# Rename columns to match the R script's snake_case conventions
-# The R function `make_ames()` renames specific columns; we map the raw names to those.
-column_map = {
-    'Sale Price': 'Sale_Price',
-    'Year Built': 'Year_Built',
-    'Year Remod/Add': 'Year_Remod_Add',
-    'Kitchen Qual': 'Kitchen_Qual',
-    'Gr Liv Area': 'Gr_Liv_Area',
-    'Overall Qual': 'Overall_Qual',
-    'Yr Sold': 'Year_Sold'
-}
-ames_data = ames_data.rename(columns=column_map)
-
-# Select variables used in the analysis
-selected_vars = ['Sale_Price', 'Year_Built', 'Year_Remod_Add', 
-                 'Kitchen_Qual', 'Gr_Liv_Area', 'Overall_Qual', 'Year_Sold']
-
 # ==============================================================================
 # 2. Handling Missing Values & Integrity Check
 # ==============================================================================
 print(f"Original dimensions: {ames_data.shape}")
 
-# Drop rows with missing values in the selected columns
-clean_ames_data = ames_data[selected_vars].dropna().copy()
+with sqlite3.connect(":memory:") as conn:
+    ames_data.to_sql("ames_raw", conn, index=False, if_exists="replace")
+
+    clean_query = """
+    SELECT
+        [Sale Price] AS Sale_Price,
+        [Year Built] AS Year_Built,
+        [Year Remod/Add] AS Year_Remod_Add,
+        [Kitchen Qual] AS Kitchen_Qual,
+        [Gr Liv Area] AS Gr_Liv_Area,
+        [Overall Qual] AS Overall_Qual,
+        [Yr Sold] AS Year_Sold,
+        CASE
+            WHEN [Year Remod/Add] > [Year Built] THEN 'Remodeled'
+            ELSE 'Not_Remodeled'
+        END AS Renovation_Status,
+        ([Yr Sold] - [Year Built]) AS House_Age,
+        CASE
+            WHEN ([Yr Sold] - [Year Built]) <= 0 THEN 1
+            ELSE ([Yr Sold] - [Year Built])
+        END AS House_Age_Adj,
+        CASE [Kitchen Qual]
+            WHEN 'Po' THEN 'Poor'
+            WHEN 'Fa' THEN 'Fair'
+            WHEN 'TA' THEN 'Typical'
+            WHEN 'Gd' THEN 'Good'
+            WHEN 'Ex' THEN 'Excellent'
+            ELSE NULL
+        END AS Kitchen_Qual_Label,
+        CASE [Overall Qual]
+            WHEN 1 THEN 'Very_Poor'
+            WHEN 2 THEN 'Poor'
+            WHEN 3 THEN 'Fair'
+            WHEN 4 THEN 'Below_Average'
+            WHEN 5 THEN 'Average'
+            WHEN 6 THEN 'Above_Average'
+            WHEN 7 THEN 'Good'
+            WHEN 8 THEN 'Very_Good'
+            WHEN 9 THEN 'Excellent'
+            WHEN 10 THEN 'Very_Excellent'
+            ELSE NULL
+        END AS Overall_Qual_Label
+    FROM ames_raw
+    WHERE [Sale Price] IS NOT NULL
+      AND [Year Built] IS NOT NULL
+      AND [Year Remod/Add] IS NOT NULL
+      AND [Kitchen Qual] IS NOT NULL
+      AND [Gr Liv Area] IS NOT NULL
+      AND [Overall Qual] IS NOT NULL
+      AND [Yr Sold] IS NOT NULL
+    """
+    clean_ames_data = pd.read_sql_query(clean_query, conn)
 
 print(f"Cleaned dimensions: {clean_ames_data.shape}")
 
@@ -57,45 +91,14 @@ clean_ames_data.to_csv("clean_ames_data_for_analysis.csv", index=False)
 # ==============================================================================
 # 3. Deriving Variables
 # ==============================================================================
-# Create 'Renovation_Status'
-clean_ames_data['Renovation_Status'] = np.where(
-    clean_ames_data['Year_Remod_Add'] > clean_ames_data['Year_Built'], 
-    "Remodeled", 
-    "Not_Remodeled"
-)
-
-# Create 'House_Age' and 'House_Age_Adj'
-clean_ames_data['House_Age'] = clean_ames_data['Year_Sold'] - clean_ames_data['Year_Built']
-# Adjust House_Age to be at least 1 to avoid issues with log/box-cox if 0
-clean_ames_data['House_Age_Adj'] = clean_ames_data['House_Age'].apply(lambda x: 1 if x <= 0 else x)
-
-# Define Factor Levels (Ordering)
-kitchen_qual_order = ["Po", "Fa", "TA", "Gd", "Ex"] # Raw codes: Poor, Fair, Typical/Avg, Good, Excellent
-# Map raw codes to the labels used in R script if necessary, or just rely on order.
-# The raw data uses abbreviations (Po, Fa, TA, Gd, Ex). The R script had full names.
-# We will map them for consistency with the R output labels.
-qual_map = {"Po": "Poor", "Fa": "Fair", "TA": "Typical", "Gd": "Good", "Ex": "Excellent"}
-clean_ames_data['Kitchen_Qual'] = clean_ames_data['Kitchen_Qual'].map(qual_map)
-
-# Define ordered categories
 clean_ames_data['Kitchen_Qual'] = pd.Categorical(
-    clean_ames_data['Kitchen_Qual'], 
-    categories=["Poor", "Fair", "Typical", "Good", "Excellent"], 
+    clean_ames_data['Kitchen_Qual_Label'],
+    categories=["Poor", "Fair", "Typical", "Good", "Excellent"],
     ordered=True
 )
 
-# Note: Overall_Qual is numeric (1-10) in raw data, but treated as factor in R.
-# We will bin/map it to match the R script's levels if we want exact parity, 
-# but simply converting to categorical is usually sufficient. 
-# The R script levels: Very_Poor...Excellent.
-# Mapping 1-10 to descriptions:
-overall_qual_map = {
-    1: "Very_Poor", 2: "Poor", 3: "Fair", 4: "Below_Average", 5: "Average",
-    6: "Above_Average", 7: "Good", 8: "Very_Good", 9: "Excellent", 10: "Very_Excellent"
-}
-clean_ames_data['Overall_Qual'] = clean_ames_data['Overall_Qual'].map(overall_qual_map)
 clean_ames_data['Overall_Qual'] = pd.Categorical(
-    clean_ames_data['Overall_Qual'],
+    clean_ames_data['Overall_Qual_Label'],
     categories=[
         "Very_Poor", "Poor", "Fair", "Below_Average", "Average",
         "Above_Average", "Good", "Very_Good", "Excellent", "Very_Excellent"
